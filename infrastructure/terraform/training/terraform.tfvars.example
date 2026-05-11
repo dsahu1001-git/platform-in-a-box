@@ -1,0 +1,12 @@
+aws_profile         = "pe-training"
+aws_region          = "us-east-1"
+cluster_name        = "pe-training-cluster"
+cluster_version     = "1.34"
+repository_name     = "sample-platform-app"
+desired_node_count  = 2
+node_instance_types = ["t3.medium"]
+
+# Optional extra tags for class/date tracking.
+tags = {
+  Session = "day2"
+}

@@ -1,0 +1,12 @@
+.DS_Store
+*.log
+
+# Terraform
+**/.terraform/
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/tfplan
+
+# Local outputs
+*.out
+.env

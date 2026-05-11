@@ -1,0 +1,27 @@
+{
+  "service": "sample-platform-app",
+  "owner": "platform-training",
+  "environment": "training",
+  "runtime": "eks",
+  "namespace": "platform-demo",
+  "replicas": 2,
+  "containerPort": 8080,
+  "route": "/",
+  "healthPath": "/healthz",
+  "readinessPath": "/readyz",
+  "metricsPath": "/metrics",
+  "cpuRequest": "100m",
+  "memoryRequest": "128Mi",
+  "cpuLimit": "500m",
+  "memoryLimit": "256Mi",
+  "ingress": {
+    "enabled": false,
+    "className": "alb"
+  },
+  "tags": {
+    "Course": "pe-training",
+    "Owner": "training",
+    "Environment": "training",
+    "AutoDelete": "true"
+  }
+}

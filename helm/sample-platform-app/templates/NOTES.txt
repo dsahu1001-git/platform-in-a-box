@@ -1,0 +1,12 @@
+The sample app has been deployed.
+
+Check runtime state:
+  kubectl -n {{ .Release.Namespace }} get deploy,svc,pods
+
+Port-forward locally:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "sample-platform-app.fullname" . }} 8080:80
+
+Then open:
+  http://localhost:8080/
+  http://localhost:8080/healthz
+  http://localhost:8080/metrics
