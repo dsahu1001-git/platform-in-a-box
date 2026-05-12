@@ -7,4 +7,4 @@ resources:
 images:
   - name: sample-platform-app
     newName: 808849570426.dkr.ecr.us-east-1.amazonaws.com/sample-platform-app-rehearsal
-    newTag: eb33426
+    newTag: d1122dc
