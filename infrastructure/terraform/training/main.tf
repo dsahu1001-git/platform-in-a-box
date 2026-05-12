@@ -150,3 +150,121 @@ resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
   role       = aws_iam_role.aws_load_balancer_controller.name
   policy_arn = aws_iam_policy.aws_load_balancer_controller.arn
 }
+
+# Day 3: GitHub Actions OIDC role for image build/push and training deploy.
+data "aws_caller_identity" "current" {}
+
+resource "aws_iam_openid_connect_provider" "github_actions" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+}
+
+data "aws_iam_policy_document" "github_actions_assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.github_branch}"]
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions_ci" {
+  name               = "${var.cluster_name}-github-actions-ci"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+
+  tags = local.tags
+}
+
+data "aws_iam_policy_document" "github_actions_ci" {
+  statement {
+    sid    = "EcrLogin"
+    effect = "Allow"
+
+    actions = [
+      "ecr:GetAuthorizationToken"
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "EcrPushPull"
+    effect = "Allow"
+
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages",
+      "ecr:DescribeRepositories",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:InitiateLayerUpload",
+      "ecr:ListImages",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart"
+    ]
+
+    resources = [aws_ecr_repository.app.arn]
+  }
+
+  statement {
+    sid    = "EksDescribeCluster"
+    effect = "Allow"
+
+    actions = [
+      "eks:DescribeCluster"
+    ]
+
+    resources = [module.eks.cluster_arn]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_ci" {
+  name        = "${var.cluster_name}-github-actions-ci"
+  description = "Day 3 GitHub Actions policy for ECR push and EKS deployment in the training cluster."
+  policy      = data.aws_iam_policy_document.github_actions_ci.json
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_ci" {
+  role       = aws_iam_role.github_actions_ci.name
+  policy_arn = aws_iam_policy.github_actions_ci.arn
+}
+
+resource "aws_eks_access_entry" "github_actions_ci" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = aws_iam_role.github_actions_ci.arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "github_actions_ci" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = aws_iam_role.github_actions_ci.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.github_actions_ci]
+}

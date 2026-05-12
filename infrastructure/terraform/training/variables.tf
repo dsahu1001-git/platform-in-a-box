@@ -51,3 +51,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "github_repository" {
+  description = "GitHub repository allowed to assume the Day 3 CI role, formatted as owner/repo."
+  type        = string
+  default     = "dsahu1001-git/sample-platform-app"
+}
+
+variable "github_branch" {
+  description = "Git branch allowed to assume the Day 3 CI role."
+  type        = string
+  default     = "main"
+}

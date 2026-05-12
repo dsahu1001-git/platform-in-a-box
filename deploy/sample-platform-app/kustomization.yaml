@@ -1,0 +1,10 @@
+namespace: platform-demo
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+images:
+  - name: sample-platform-app
+    newName: 000000000000.dkr.ecr.us-east-1.amazonaws.com/sample-platform-app
+    newTag: v1

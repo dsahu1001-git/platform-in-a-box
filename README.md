@@ -17,6 +17,8 @@ app/                              # Go HTTP service and Dockerfile
 platform/service.json              # Small service contract for training discussion
 infrastructure/terraform/training/ # VPC, EKS, ECR, and outputs
 helm/sample-platform-app/          # Helm chart for the app
+deploy/sample-platform-app/          # GitOps desired state for Argo CD
+.github/workflows/                  # Day 3 GitHub Actions workflows
 Makefile                           # Training command menu
 ```
 
