@@ -1,4 +1,4 @@
-replicaCount: 2
+replicaCount: null
 
 image:
   repository: ""

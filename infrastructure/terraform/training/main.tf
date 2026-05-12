@@ -111,3 +111,42 @@ resource "aws_ecr_lifecycle_policy" "app" {
     ]
   })
 }
+
+
+resource "aws_iam_policy" "aws_load_balancer_controller" {
+  name        = "${var.cluster_name}-aws-load-balancer-controller"
+  description = "IAM policy for AWS Load Balancer Controller in the training EKS cluster."
+  policy      = file("${path.module}/iam/aws-load-balancer-controller-policy.json")
+
+  tags = local.tags
+}
+
+resource "aws_iam_role" "aws_load_balancer_controller" {
+  name = "${var.cluster_name}-aws-load-balancer-controller"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = module.eks.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${module.eks.oidc_provider}:aud" = "sts.amazonaws.com"
+            "${module.eks.oidc_provider}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
+  role       = aws_iam_role.aws_load_balancer_controller.name
+  policy_arn = aws_iam_policy.aws_load_balancer_controller.arn
+}

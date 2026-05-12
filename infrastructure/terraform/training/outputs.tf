@@ -47,3 +47,14 @@ output "node_security_group_id" {
   description = "EKS node security group ID."
   value       = module.eks.node_security_group_id
 }
+
+
+output "aws_load_balancer_controller_role_arn" {
+  description = "IAM role ARN used by the AWS Load Balancer Controller service account."
+  value       = aws_iam_role.aws_load_balancer_controller.arn
+}
+
+output "aws_load_balancer_controller_policy_arn" {
+  description = "IAM policy ARN for the AWS Load Balancer Controller."
+  value       = aws_iam_policy.aws_load_balancer_controller.arn
+}
