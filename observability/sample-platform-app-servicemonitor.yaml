@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sample-platform-app
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      training.openai/platform-demo: "true"
+  namespaceSelector:
+    matchNames:
+      - platform-demo
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

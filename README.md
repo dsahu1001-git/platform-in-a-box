@@ -8,7 +8,7 @@ Day 2 uses this repository manually:
 app code -> Docker image -> ECR -> Helm -> EKS -> kubectl inspection
 ```
 
-Day 3 automates the same path with GitHub Actions and Argo CD. Day 4 adds observability, policy, cost, and a minimal portal view.
+Day 3 automates the same path with GitHub Actions and Argo CD. Day 4 adds multi-app Argo CD, observability, and a minimal portal trigger flow.
 
 ## Project Layout
 
@@ -18,7 +18,10 @@ platform/service.json              # Small service contract for training discuss
 infrastructure/terraform/training/ # VPC, EKS, ECR, and outputs
 helm/sample-platform-app/          # Helm chart for the app
 deploy/sample-platform-app/          # GitOps desired state for Argo CD
+deploy/apps/                         # Day 4 per-app GitOps values for multi-app demo
 .github/workflows/                  # Day 3 GitHub Actions workflows
+observability/                      # Prometheus, Loki, and OTel collector values/manifests
+portal/                             # Minimal Day 4 portal that triggers GitHub workflow dispatch
 Makefile                           # Training command menu
 ```
 

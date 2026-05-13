@@ -1,0 +1,10 @@
+nameOverride: app-c
+fullnameOverride: app-c
+replicaCount: 2
+
+image:
+  tag: "v1"
+
+env:
+  SERVICE_NAME: app-c
+  REPORT_NAME: app-c-demo

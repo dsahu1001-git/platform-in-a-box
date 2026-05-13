@@ -1,0 +1,8 @@
+grafana:
+  adminPassword: training123
+  service:
+    type: ClusterIP
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false

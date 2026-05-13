@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-apps
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - app: app-a
+          - app: app-b
+          - app: app-c
+          - app: app-d
+          - app: app-e
+  template:
+    metadata:
+      name: '{{app}}'
+      labels:
+        training.openai/platform-demo: "true"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/dsahu1001-git/sample-platform-app.git
+        targetRevision: main
+        path: helm/sample-platform-app
+        helm:
+          valueFiles:
+            - ../../deploy/apps/shared-values.yaml
+            - ../../deploy/apps/{{app}}.values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: platform-demo
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

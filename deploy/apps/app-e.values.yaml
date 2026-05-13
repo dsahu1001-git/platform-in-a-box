@@ -1,0 +1,10 @@
+nameOverride: app-e
+fullnameOverride: app-e
+replicaCount: 2
+
+image:
+  tag: "v1"
+
+env:
+  SERVICE_NAME: app-e
+  REPORT_NAME: app-e-demo

@@ -14,6 +14,8 @@ type appInfo struct {
 	Service     string `json:"service"`
 	Version     string `json:"version"`
 	Environment string `json:"environment"`
+	ReleaseRing string `json:"releaseRing"`
+	ReportName  string `json:"reportName"`
 	Hostname    string `json:"hostname"`
 	Time        string `json:"time"`
 }
@@ -25,43 +27,65 @@ func main() {
 	service := env("SERVICE_NAME", "sample-platform-app")
 	version := env("APP_VERSION", "dev")
 	environment := env("APP_ENV", "training")
+	releaseRing := env("RELEASE_RING", "dev")
+	reportName := env("REPORT_NAME", "training-demo")
 	hostname, _ := os.Hostname()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddUint64(&requestCount, 1)
+	handle := func(path string, next http.HandlerFunc) {
+		http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddUint64(&requestCount, 1)
+			started := time.Now()
+			recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+			next(recorder, r)
+			log.Printf(
+				"method=%s path=%s status=%d duration_ms=%d service=%s version=%s report=%s ring=%s",
+				r.Method,
+				r.URL.Path,
+				recorder.status,
+				time.Since(started).Milliseconds(),
+				service,
+				version,
+				reportName,
+				releaseRing,
+			)
+		})
+	}
+
+	handle("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(appInfo{
 			Service:     service,
 			Version:     version,
 			Environment: environment,
+			ReleaseRing: releaseRing,
+			ReportName:  reportName,
 			Hostname:    hostname,
 			Time:        time.Now().UTC().Format(time.RFC3339),
 		})
 	})
 
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddUint64(&requestCount, 1)
+	handle("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("I'm running after app change 2\n"))
 	})
 
-	http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddUint64(&requestCount, 1)
+	handle("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready after\n"))
 	})
 
-	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddUint64(&requestCount, 1)
+	handle("/version", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"service": service,
-			"version": version,
+			"service":     service,
+			"version":     version,
+			"reportName":  reportName,
+			"releaseRing": releaseRing,
+			"environment": environment,
 		})
 	})
 
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddUint64(&requestCount, 1)
+	handle("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		fmt.Fprintln(w, "# HELP sample_platform_app_requests_total Total HTTP requests handled by the sample app.")
 		fmt.Fprintln(w, "# TYPE sample_platform_app_requests_total counter")
@@ -78,4 +102,14 @@ func env(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (recorder *statusRecorder) WriteHeader(status int) {
+	recorder.status = status
+	recorder.ResponseWriter.WriteHeader(status)
 }

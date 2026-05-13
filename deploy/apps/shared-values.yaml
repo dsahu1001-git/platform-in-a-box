@@ -1,0 +1,14 @@
+image:
+  repository: 808849570426.dkr.ecr.us-east-1.amazonaws.com/sample-platform-app-trainee
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+env:
+  APP_ENV: training
+  RELEASE_RING: dev

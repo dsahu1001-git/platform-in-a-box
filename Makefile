@@ -15,7 +15,7 @@ CLUSTER_NAME = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(A
 VPC_ID = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) terraform output -raw vpc_id 2>/dev/null)
 ALB_CONTROLLER_ROLE_ARN = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) terraform output -raw aws_load_balancer_controller_role_arn 2>/dev/null)
 
-.PHONY: help platform-plan app-test infra-init infra-plan infra-apply infra-output kubeconfig ecr-login image-build image-push alb-controller-install alb-controller-status app-deploy app-deploy-ingress app-url app-disable-ingress app-status app-logs app-scale app-restart app-port-forward app-uninstall
+.PHONY: help platform-plan app-test infra-init infra-plan infra-apply infra-output kubeconfig ecr-login image-build image-push alb-controller-install alb-controller-status app-deploy app-deploy-ingress app-url app-disable-ingress app-status app-logs app-scale app-restart app-port-forward app-uninstall appset-apply appset-status portal-run
 
 help:
 	@echo "Sample Platform App targets"
@@ -40,6 +40,9 @@ help:
 	@echo "  make app-logs             Show recent app logs"
 	@echo "  make app-scale REPLICAS=3 Scale the deployment"
 	@echo "  make app-port-forward     Forward http://localhost:8080"
+	@echo "  make appset-apply         Apply the Day 4 Argo CD ApplicationSet"
+	@echo "  make appset-status        Show Argo CD applications"
+	@echo "  make portal-run           Start the Day 4 portal on http://localhost:9090"
 
 platform-plan:
 	@python3 -m json.tool platform/service.json
@@ -136,6 +139,15 @@ app-restart:
 
 app-port-forward:
 	kubectl -n $(NAMESPACE) port-forward svc/$(RELEASE) 8080:80
+
+appset-apply:
+	kubectl apply -f gitops/argocd/platform-apps-appset.yaml
+
+appset-status:
+	kubectl -n argocd get applications
+
+portal-run:
+	cd portal && go run .
 
 app-uninstall:
 	helm uninstall $(RELEASE) --namespace $(NAMESPACE)

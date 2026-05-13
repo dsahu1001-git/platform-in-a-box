@@ -1,0 +1,13 @@
+nameOverride: app-a
+fullnameOverride: app-a
+replicaCount: 2
+
+image:
+  tag: "v1"
+
+ingress:
+  enabled: true
+
+env:
+  SERVICE_NAME: app-a
+  REPORT_NAME: app-a-demo
