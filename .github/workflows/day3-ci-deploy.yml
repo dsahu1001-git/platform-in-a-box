@@ -90,7 +90,7 @@ jobs:
           helm version
           kubectl version --client=true
           helm upgrade --install "$RELEASE_NAME" ./helm/sample-platform-app \
-            --namespace "$NAMESPACE" \ 
+            --namespace "$NAMESPACE" \
             --create-namespace \
             --set image.repository="${IMAGE_URI%:*}" \
             --set image.tag="$IMAGE_TAG"
