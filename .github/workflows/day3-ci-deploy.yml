@@ -102,7 +102,7 @@ jobs:
           helm upgrade --install "$RELEASE_NAME" ./helm/sample-platform-app \
             --namespace "$NAMESPACE" \
             --create-namespace \
-            --set image.repository="${{ needs.build-push.outputs.image_repository }} \
+            --set image.repository="${{ needs.build-push.outputs.image_repository }}" \
             --set image.tag="${{ needs.build-push.outputs.image_tag }}"
           kubectl -n "$NAMESPACE" rollout status deploy/"$RELEASE_NAME" --timeout=180s
 
