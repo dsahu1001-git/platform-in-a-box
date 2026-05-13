@@ -22,7 +22,7 @@ env:
   NAMESPACE: platform-demo
 
 jobs:
-  build-push-deploy:
+  build-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -70,13 +70,27 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
           echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-push
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: day3-direct-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}            
+
       - name: Deploy with Helm
         run: |
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
           helm version
           kubectl version --client=true
-          helm upgrade --install "RELEASE" ./helm/sample-platform-app \
-            --namespace "$NAMESPACE" \
+          helm upgrade --install "$RELEASE_NAME" ./helm/sample-platform-app \
+            --namespace "$NAMESPACE" \ 
             --create-namespace \
             --set image.repository="${IMAGE_URI%:*}" \
             --set image.tag="$IMAGE_TAG"
