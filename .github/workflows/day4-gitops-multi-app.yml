@@ -1,0 +1,132 @@
+name: day4-gitops-multi-app
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "Deploy one app or all apps"
+        required: true
+        type: choice
+        options:
+          - single-app
+          - all-apps
+        default: single-app
+      app_name:
+        description: "App to update when scope is single-app"
+        required: true
+        type: choice
+        options:
+          - app-a
+          - app-b
+          - app-c
+          - app-d
+          - app-e
+        default: app-a
+      report_name:
+        description: "Visible report name for browser demo"
+        required: true
+        default: platform-demo
+      release_ring:
+        description: "Narrative ring to show in the app response"
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+        default: dev
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+
+jobs:
+  build-push-update-git:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required repository variables
+        run: |
+          test -n "$AWS_REGION" || (echo "Missing repository variable AWS_REGION" && exit 1)
+          test -n "$AWS_ROLE_ARN" || (echo "Missing repository variable AWS_ROLE_ARN" && exit 1)
+          test -n "$ECR_REPOSITORY" || (echo "Missing repository variable ECR_REPOSITORY" && exit 1)
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+
+      - name: Test
+        working-directory: app
+        run: go test ./...
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: day4-gitops-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          IMAGE_TAG="${GITHUB_SHA::7}"
+          IMAGE_URI="$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build --platform linux/amd64 -t "$IMAGE_URI" ./app
+          docker push "$IMAGE_URI"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "IMAGE_REPOSITORY=$REGISTRY/$ECR_REPOSITORY" >> "$GITHUB_ENV"
+
+      - name: Update app manifests
+        env:
+          INPUT_SCOPE: ${{ github.event.inputs.scope }}
+          INPUT_APP_NAME: ${{ github.event.inputs.app_name }}
+          INPUT_REPORT_NAME: ${{ github.event.inputs.report_name }}
+          INPUT_RELEASE_RING: ${{ github.event.inputs.release_ring }}
+        run: |
+          REPORT_NAME="$(echo "$INPUT_REPORT_NAME" | tr -cd '[:alnum:]-_' | cut -c1-40)"
+          RELEASE_RING="$INPUT_RELEASE_RING"
+
+          perl -0pi -e "s|RELEASE_RING: .*|RELEASE_RING: \"$RELEASE_RING\"|" deploy/apps/shared-values.yaml
+
+          if [ "$INPUT_SCOPE" = "single-app" ]; then
+            TARGET_FILE="deploy/apps/${INPUT_APP_NAME}.values.yaml"
+            perl -0pi -e "s|tag: \".*\"|tag: \"$IMAGE_TAG\"|" "$TARGET_FILE"
+            perl -0pi -e "s|REPORT_NAME: .*|REPORT_NAME: \"$REPORT_NAME\"|" "$TARGET_FILE"
+            git add "$TARGET_FILE" deploy/apps/shared-values.yaml
+            COMMIT_SCOPE="$INPUT_APP_NAME"
+          else
+            for target in deploy/apps/app-*.values.yaml; do
+              perl -0pi -e "s|tag: \".*\"|tag: \"$IMAGE_TAG\"|" "$target"
+            done
+            git add deploy/apps/app-*.values.yaml deploy/apps/shared-values.yaml
+            COMMIT_SCOPE="all-apps"
+          fi
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git diff --cached --quiet && echo "No manifest change" && exit 0
+          git commit -m "deploy: ${COMMIT_SCOPE} ${IMAGE_TAG} ring=${RELEASE_RING}"
+          git push
+
+      - name: Workflow summary
+        run: |
+          echo "### Day 4 GitOps Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: ${{ github.event.inputs.scope }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App: ${{ github.event.inputs.app_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Report name: ${{ github.event.inputs.report_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release ring: ${{ github.event.inputs.release_ring }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image repository: $IMAGE_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image tag: $IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"
