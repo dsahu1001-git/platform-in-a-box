@@ -5,8 +5,6 @@ replicaCount: 2
 image:
   tag: "v1"
 
-ingress:
-  enabled: true
 
 env:
   SERVICE_NAME: app-a
