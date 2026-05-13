@@ -42,7 +42,7 @@ func main() {
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddUint64(&requestCount, 1)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok\n"))
+		_, _ = w.Write([]byte("I'm running after app change\n"))
 	})
 
 	http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
