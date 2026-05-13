@@ -9,6 +9,10 @@ on:
       - helm/**
       - .github/workflows/day3-ci-deploy.yml
 
+concurrency:
+  group: day3-ci-deploy-main
+  cancel-in-progress: true      
+
 permissions:
   id-token: write
   contents: read
@@ -79,6 +83,13 @@ jobs:
         run: |
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "image_repository=${IMAGE_URI%:*}" >> "$GITHUB_OUTPUT"
+
+      - name: Build stage summary
+        run: |
+          echo "### Build Stage Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image repository: ${IMAGE_URI%:*}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image tag: $IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"          
   
   deploy:
     runs-on: ubuntu-latest
@@ -109,3 +120,13 @@ jobs:
 
       - name: Show runtime objects
         run: kubectl -n "$NAMESPACE" get deploy,svc,pods -o wide
+      
+      - name: Deploy stage summary
+        run: |
+          echo "### Deploy Stage Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cluster: $EKS_CLUSTER" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Namespace: $NAMESPACE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release: $RELEASE_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image repository: ${{ needs.build-push.outputs.image_repository }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image tag: ${{ needs.build-push.outputs.image_tag }}" >> "$GITHUB_STEP_SUMMARY"
+
