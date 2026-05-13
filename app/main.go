@@ -48,7 +48,7 @@ func main() {
 	http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddUint64(&requestCount, 1)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ready\n"))
+		_, _ = w.Write([]byte("ready after\n"))
 	})
 
 	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
