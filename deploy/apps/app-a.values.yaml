@@ -9,4 +9,3 @@ image:
 env:
   SERVICE_NAME: app-a
   REPORT_NAME: "day4-demo"
-  RELEASE_RING: "stage"
