@@ -11,4 +11,4 @@ resources:
 
 env:
   APP_ENV: training
-  RELEASE_RING: "stage"
+  RELEASE_RING: "dev"
