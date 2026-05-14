@@ -3,7 +3,7 @@ fullnameOverride: app-d
 replicaCount: 2
 
 image:
-  tag: "8f5f6ca"
+  tag: "cdaaa1d"
 
 env:
   SERVICE_NAME: app-d
