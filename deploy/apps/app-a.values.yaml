@@ -3,9 +3,9 @@ fullnameOverride: app-a
 replicaCount: 2
 
 image:
-  tag: "8cca1e8"
+  tag: "478fbbc"
 
 
 env:
   SERVICE_NAME: app-a
-  REPORT_NAME: "day4-demo1"
+  REPORT_NAME: "platform-demo"
