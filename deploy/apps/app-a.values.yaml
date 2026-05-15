@@ -3,7 +3,7 @@ fullnameOverride: app-a
 replicaCount: 2
 
 image:
-  tag: "a831b23"
+  tag: "11d4c83"
 
 
 env:
