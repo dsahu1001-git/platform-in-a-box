@@ -15,12 +15,15 @@ CLUSTER_NAME = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(A
 VPC_ID = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) terraform output -raw vpc_id 2>/dev/null)
 ALB_CONTROLLER_ROLE_ARN = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) terraform output -raw aws_load_balancer_controller_role_arn 2>/dev/null)
 
-.PHONY: help platform-plan app-test infra-init infra-plan infra-apply infra-output kubeconfig ecr-login image-build image-push alb-controller-install alb-controller-status app-deploy app-deploy-ingress app-url app-disable-ingress app-status app-logs app-scale app-restart app-port-forward app-uninstall appset-apply appset-status portal-run cleanup-all
+.PHONY: help setup test run platform-plan app-test infra-init infra-plan infra-apply infra-output kubeconfig ecr-login image-build image-push alb-controller-install alb-controller-status app-deploy app-deploy-ingress app-url app-disable-ingress app-status app-logs app-scale app-restart app-port-forward app-uninstall appset-apply appset-status portal-run cleanup-all
 
 help:
 	@echo "Sample Platform App targets"
 	@echo ""
 	@echo "  make platform-plan        Show the service contract"
+	@echo "  make setup               Install/sync local runtime context"
+	@echo "  make test                Run safe local tests"
+	@echo "  make run                 Run portal locally"
 	@echo "  make app-test             Run Go tests"
 	@echo "  make infra-init           Terraform init"
 	@echo "  make infra-plan           Terraform plan"
@@ -47,6 +50,19 @@ help:
 
 platform-plan:
 	@python3 -m json.tool platform/service.json
+
+setup:
+	@echo "Run your auth/profile setup first (example):"
+	@echo "  aws sso login --profile $(AWS_PROFILE)"
+	@echo "Then sync kube context:"
+	@$(MAKE) kubeconfig
+
+test:
+	@$(MAKE) app-test
+	cd portal && go test ./...
+
+run:
+	cd portal && go run .
 
 app-test:
 	cd app && go test ./...

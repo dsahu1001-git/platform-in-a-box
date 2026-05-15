@@ -1,5 +1,8 @@
 # Sample Platform App
 
+![License](https://img.shields.io/badge/license-MIT-green)
+![Learning Project](https://img.shields.io/badge/type-learning_project-blue)
+
 A small training service used to demonstrate a platform engineering golden path.
 
 Core delivery path in this repository:
@@ -9,6 +12,51 @@ app code -> Docker image -> ECR -> Helm -> EKS -> kubectl inspection
 ```
 
 The same path is then automated with GitHub Actions and Argo CD, and expanded to multi-app rollout, observability, and a minimal portal trigger flow.
+
+## Scope
+
+What this project does:
+- shows an end-to-end platform engineering learning flow (infra, app delivery, GitOps, observability, portal)
+- provides runnable examples for AWS + Kubernetes + GitHub Actions + Argo CD
+
+What this project does not do:
+- production hardening by default
+- zero-cost local-only simulation
+- managed support/SLA
+
+Blog post:
+- Add your article link here: `https://your-blog-link`
+
+## Quickstart (≤5 commands)
+
+```bash
+git clone https://github.com/dsahu1001-git/sample-platform-app.git
+cd sample-platform-app
+cp .env.example .env
+make help
+make setup
+```
+
+## Prerequisites
+
+- `git` latest stable
+- `go` 1.22+
+- `docker` latest stable
+- `kubectl` 1.29+
+- `helm` 3.14+
+- `terraform` 1.6+
+- `aws` CLI v2
+- `gh` GitHub CLI
+
+## Architecture
+
+Use this high-level flow:
+
+```text
+GitHub Repo -> GitHub Actions -> ECR -> Argo CD -> EKS (apps)
+                                  -> Prometheus/Grafana/Loki
+                                  -> Portal (workflow dispatch + status)
+```
 
 ## Project Layout
 
@@ -418,5 +466,11 @@ CONFIRM=YES SKIP_TERRAFORM=true ./scripts/cleanup-all.sh
 # keep add-ons, still destroy terraform infra
 CONFIRM=YES SKIP_AWS_ADDONS=true ./scripts/cleanup-all.sh
 ```
+
+## Known Limitations
+
+- Cloud resources can incur cost if cleanup is skipped.
+- Portal health checks rely on local `kubectl` context and local port-forwards for Prometheus/Grafana.
+- Workflows assume AWS and GitHub OIDC setup is already configured in the learner fork.
 
 This repo is intentionally small. It is not a production platform baseline.
