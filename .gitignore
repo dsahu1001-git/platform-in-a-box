@@ -1,5 +1,13 @@
 .DS_Store
 *.log
+*.tmp
+
+# Node/Python build artifacts
+node_modules/
+venv/
+.venv/
+dist/
+build/
 
 # Terraform
 **/.terraform/
@@ -10,3 +18,6 @@
 # Local outputs
 *.out
 .env
+.envrc
+.aws/
+.kube/
