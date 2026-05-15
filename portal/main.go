@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -186,7 +187,14 @@ func triggerWorkflow(cfg config, reportName string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent {
-		return apiError{Code: http.StatusBadGateway, Message: "workflow dispatch was not accepted"}
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		msg := strings.TrimSpace(string(bodyBytes))
+		if msg == "" {
+			msg = fmt.Sprintf("workflow dispatch was not accepted (github status %d)", resp.StatusCode)
+		} else {
+			msg = fmt.Sprintf("workflow dispatch was not accepted (github status %d): %s", resp.StatusCode, msg)
+		}
+		return apiError{Code: http.StatusBadGateway, Message: msg}
 	}
 	return nil
 }
