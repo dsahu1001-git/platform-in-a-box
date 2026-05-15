@@ -269,4 +269,76 @@ export PORT=9091
 make portal-run
 ```
 
+### Portal Features and Test Flow
+
+The portal supports:
+
+- dynamic workflow target inputs (owner/repo/workflow/ref/scope/app/ring/namespace)
+- workflow dispatch and live run tracking (status, conclusion, run URL, run id/attempt)
+- platform proof checks for:
+  - Terraform workspace presence
+  - AWS caller identity
+  - GitHub repo access
+  - Kubernetes cluster connectivity
+  - Argo CD applications
+  - namespace deployments
+  - Prometheus API
+  - Grafana health API
+  - Loki pod presence
+
+Recommended test flow:
+
+```bash
+cd portal
+go test ./...
+PORT=9091 go run .
+```
+
+Open `http://localhost:9091`, then:
+
+1. click `Refresh Platform Checks`
+2. submit a deployment request
+3. validate workflow status progression in portal
+4. open run URL and verify workflow inputs
+
+If checks show `WARN` for Kubernetes/Argo/Loki, first verify shell context:
+
+```bash
+aws sso login --profile pe-training
+make kubeconfig
+kubectl get nodes
+kubectl -n argocd get applications
+kubectl -n platform-demo get deploy
+kubectl -n monitoring get pods -l app.kubernetes.io/name=loki
+```
+
+Prometheus/Grafana checks require local port-forwards:
+
+```bash
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+```
+
+## Full Cleanup (Cost Control)
+
+When finished, remove all training resources (keeps code repo intact):
+
+```bash
+make cleanup-all CONFIRM=YES
+```
+
+Script location:
+
+- `scripts/cleanup-all.sh`
+
+Useful options:
+
+```bash
+# keep AWS infra, cleanup only cluster-level resources
+CONFIRM=YES SKIP_TERRAFORM=true ./scripts/cleanup-all.sh
+
+# keep add-ons, still destroy terraform infra
+CONFIRM=YES SKIP_AWS_ADDONS=true ./scripts/cleanup-all.sh
+```
+
 This repo is intentionally small. It is not a production platform baseline.

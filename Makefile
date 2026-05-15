@@ -15,7 +15,7 @@ CLUSTER_NAME = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(A
 VPC_ID = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) terraform output -raw vpc_id 2>/dev/null)
 ALB_CONTROLLER_ROLE_ARN = $(shell cd $(TF_DIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) terraform output -raw aws_load_balancer_controller_role_arn 2>/dev/null)
 
-.PHONY: help platform-plan app-test infra-init infra-plan infra-apply infra-output kubeconfig ecr-login image-build image-push alb-controller-install alb-controller-status app-deploy app-deploy-ingress app-url app-disable-ingress app-status app-logs app-scale app-restart app-port-forward app-uninstall appset-apply appset-status portal-run
+.PHONY: help platform-plan app-test infra-init infra-plan infra-apply infra-output kubeconfig ecr-login image-build image-push alb-controller-install alb-controller-status app-deploy app-deploy-ingress app-url app-disable-ingress app-status app-logs app-scale app-restart app-port-forward app-uninstall appset-apply appset-status portal-run cleanup-all
 
 help:
 	@echo "Sample Platform App targets"
@@ -43,6 +43,7 @@ help:
 	@echo "  make appset-apply         Apply the Day 4 Argo CD ApplicationSet"
 	@echo "  make appset-status        Show Argo CD applications"
 	@echo "  make portal-run           Start the Day 4 portal on http://localhost:9090"
+	@echo "  make cleanup-all          Delete training resources (requires CONFIRM=YES)"
 
 platform-plan:
 	@python3 -m json.tool platform/service.json
@@ -151,3 +152,7 @@ portal-run:
 
 app-uninstall:
 	helm uninstall $(RELEASE) --namespace $(NAMESPACE)
+
+cleanup-all:
+	@test -x scripts/cleanup-all.sh || chmod +x scripts/cleanup-all.sh
+	CONFIRM=$(CONFIRM) AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) NAMESPACE=$(NAMESPACE) ./scripts/cleanup-all.sh
