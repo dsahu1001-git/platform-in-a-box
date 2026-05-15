@@ -37,6 +37,16 @@ make help
 
 Use `make <target>` for common operations (infra planning, kubeconfig setup, image build/push, and app deploy/status) instead of retyping long commands.
 
+## Public Repo Usage Policy
+
+This repository is public for learning and reference.
+
+- Do not run pipelines in this upstream repository.
+- Fork first, then run workflows in your own fork.
+- Configure your own AWS/GitHub variables and secrets in your fork.
+
+Note: GitHub Actions in this upstream repository are intentionally disabled to prevent shared usage.
+
 ## Customize For Your Environment
 
 If a trainee uses this same codebase but runs with their own AWS/GitHub setup, these values must be customized.
