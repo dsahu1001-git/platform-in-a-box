@@ -269,6 +269,74 @@ export PORT=9091
 make portal-run
 ```
 
+## Run Platform / IDP End-to-End
+
+Use this sequence for a clean operator flow.
+
+### 1) Infrastructure and cluster context
+
+```bash
+make infra-output
+make kubeconfig
+kubectl get nodes
+```
+
+### 2) GitOps applications
+
+```bash
+kubectl apply -f gitops/argocd/sample-platform-app-application.yaml
+kubectl apply -f gitops/argocd/platform-apps-appset.yaml
+kubectl -n argocd get applications
+kubectl -n platform-demo get deploy,svc,pods
+```
+
+### 3) Observability stack
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  --values observability/kube-prometheus-values.yaml
+
+helm upgrade --install loki grafana/loki \
+  --namespace monitoring --create-namespace \
+  --values observability/loki-values.yaml
+
+kubectl apply -f observability/sample-platform-app-servicemonitor.yaml
+```
+
+### 4) Local access endpoints
+
+```bash
+kubectl -n argocd port-forward svc/argocd-server 8081:443
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+```
+
+### 5) Start IDP portal
+
+```bash
+export GITHUB_TOKEN="<fine-grained-token-with-actions-write>"
+export GITHUB_OWNER="dsahu1001-git"
+export GITHUB_REPO="sample-platform-app"
+export GITHUB_WORKFLOW_FILE="day4-gitops-multi-app.yml"
+export GITHUB_WORKFLOW_REF="main"
+export PORTAL_APP_NAME="app-a"
+export KUBE_NAMESPACE="platform-demo"
+export PORT=9091
+make portal-run
+```
+
+Open:
+
+- `http://localhost:9091` (IDP portal)
+- `https://localhost:8081` (Argo CD)
+- `http://localhost:9090` (Prometheus)
+- `http://localhost:3000` (Grafana)
+
 ### Portal Features and Test Flow
 
 The portal supports:

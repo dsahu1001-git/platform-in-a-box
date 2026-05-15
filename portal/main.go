@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -53,6 +54,8 @@ type deployResponse struct {
 	RequestID   string         `json:"requestId"`
 	WorkflowURL string         `json:"workflowUrl"`
 	Target      dispatchTarget `json:"target"`
+	Skipped     bool           `json:"skipped"`
+	Message     string         `json:"message,omitempty"`
 }
 
 type deploymentState struct {
@@ -161,6 +164,22 @@ func main() {
 
 		target := normalizedTarget(cfg, req.Target)
 		reportName := sanitizeReportName(req.ReportName)
+
+		changed, reason, err := hasMeaningfulChange(cfg.GitHubToken, target, reportName)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			writeJSON(w, http.StatusOK, deployResponse{
+				RequestID:   "",
+				WorkflowURL: workflowURL(target),
+				Target:      target,
+				Skipped:     true,
+				Message:     reason,
+			})
+			return nil
+		}
+
 		requestID := fmt.Sprintf("%d", time.Now().UnixNano())
 		requestsMu.Lock()
 		requests[requestID] = deploymentState{
@@ -178,6 +197,8 @@ func main() {
 			RequestID:   requestID,
 			WorkflowURL: workflowURL(target),
 			Target:      target,
+			Skipped:     false,
+			Message:     "workflow dispatch accepted",
 		})
 		return nil
 	}))
@@ -380,7 +401,7 @@ func checkTerraformWorkspace() checkItem {
 }
 
 func checkAWSIdentity() checkItem {
-	out, err := runCommand(5*time.Second, "aws", "sts", "get-caller-identity", "--output", "json")
+	out, err := runCommand(15*time.Second, "aws", "sts", "get-caller-identity", "--output", "json")
 	if err != nil {
 		return checkItem{Name: "AWS Identity", Status: "warn", Detail: err.Error(), Command: "aws sts get-caller-identity --output json"}
 	}
@@ -422,7 +443,7 @@ func checkGitHubRepo(cfg config) checkItem {
 }
 
 func checkKubernetesNodes() checkItem {
-	out, err := runCommand(5*time.Second, "kubectl", "get", "nodes", "--no-headers")
+	out, err := runCommand(15*time.Second, "kubectl", "--request-timeout=10s", "get", "nodes", "--no-headers")
 	if err != nil {
 		return checkItem{Name: "Kubernetes Cluster", Status: "warn", Detail: err.Error(), Command: "kubectl get nodes --no-headers"}
 	}
@@ -431,7 +452,7 @@ func checkKubernetesNodes() checkItem {
 }
 
 func checkArgoApplications() checkItem {
-	out, err := runCommand(5*time.Second, "kubectl", "-n", "argocd", "get", "applications", "--no-headers")
+	out, err := runCommand(15*time.Second, "kubectl", "--request-timeout=10s", "-n", "argocd", "get", "applications", "--no-headers")
 	if err != nil {
 		return checkItem{Name: "Argo CD Applications", Status: "warn", Detail: err.Error(), Command: "kubectl -n argocd get applications --no-headers"}
 	}
@@ -440,7 +461,7 @@ func checkArgoApplications() checkItem {
 }
 
 func checkNamespaceDeployments(namespace string) checkItem {
-	out, err := runCommand(5*time.Second, "kubectl", "-n", namespace, "get", "deploy", "--no-headers")
+	out, err := runCommand(15*time.Second, "kubectl", "--request-timeout=10s", "-n", namespace, "get", "deploy", "--no-headers")
 	if err != nil {
 		return checkItem{Name: "K8s Deployments", Status: "warn", Detail: err.Error(), Command: fmt.Sprintf("kubectl -n %s get deploy --no-headers", namespace)}
 	}
@@ -456,7 +477,7 @@ func checkPrometheus(baseURL string) checkItem {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return checkItem{Name: "Prometheus", Status: "warn", Detail: err.Error()}
+		return checkItem{Name: "Prometheus", Status: "warn", Detail: err.Error() + " (start port-forward: kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090)"}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -469,7 +490,7 @@ func checkGrafana(baseURL string) checkItem {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(baseURL + "/api/health")
 	if err != nil {
-		return checkItem{Name: "Grafana", Status: "warn", Detail: err.Error()}
+		return checkItem{Name: "Grafana", Status: "warn", Detail: err.Error() + " (start port-forward: kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80)"}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
@@ -482,7 +503,7 @@ func checkGrafana(baseURL string) checkItem {
 }
 
 func checkLoki() checkItem {
-	out, err := runCommand(5*time.Second, "kubectl", "-n", "monitoring", "get", "pods", "-l", "app.kubernetes.io/name=loki", "--no-headers")
+	out, err := runCommand(15*time.Second, "kubectl", "--request-timeout=10s", "-n", "monitoring", "get", "pods", "-l", "app.kubernetes.io/name=loki", "--no-headers")
 	if err != nil {
 		return checkItem{Name: "Loki", Status: "warn", Detail: err.Error(), Command: "kubectl -n monitoring get pods -l app.kubernetes.io/name=loki --no-headers"}
 	}
@@ -525,6 +546,104 @@ func nonEmptyLines(s string) []string {
 
 func workflowURL(target dispatchTarget) string {
 	return fmt.Sprintf("https://github.com/%s/%s/actions/workflows/%s", target.Owner, target.Repo, target.WorkflowFile)
+}
+
+func hasMeaningfulChange(token string, target dispatchTarget, reportName string) (bool, string, error) {
+	if token == "" {
+		return true, "", nil
+	}
+
+	shared, err := githubFileContent(token, target, "deploy/apps/shared-values.yaml")
+	if err != nil {
+		return true, "", nil
+	}
+	sharedRing := extractQuotedValue(shared, "RELEASE_RING:")
+	if sharedRing == "" {
+		sharedRing = extractBareValue(shared, "RELEASE_RING:")
+	}
+
+	if target.Scope == "single-app" {
+		appPath := fmt.Sprintf("deploy/apps/%s.values.yaml", target.AppName)
+		appValues, err := githubFileContent(token, target, appPath)
+		if err != nil {
+			return true, "", nil
+		}
+		currentReport := extractQuotedValue(appValues, "REPORT_NAME:")
+		currentAppRing := extractQuotedValue(appValues, "RELEASE_RING:")
+		if currentAppRing == "" {
+			currentAppRing = sharedRing
+		}
+		if currentReport == reportName && currentAppRing == target.ReleaseRing {
+			return false, "no changes detected: report_name and release_ring are already set for this app", nil
+		}
+		return true, "", nil
+	}
+
+	// all-apps path: report_name is not applied across all app value files in current workflow logic.
+	if sharedRing == target.ReleaseRing {
+		return false, "no changes detected: shared release_ring already matches requested value", nil
+	}
+	return true, "", nil
+}
+
+func githubFileContent(token string, target dispatchTarget, path string) (string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s?ref=%s", target.Owner, target.Repo, path, target.WorkflowRef)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("could not read %s: status=%d %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	raw := strings.ReplaceAll(payload.Content, "\n", "")
+	if payload.Encoding != "base64" {
+		return "", fmt.Errorf("unsupported github content encoding for %s: %s", path, payload.Encoding)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
+}
+
+func extractQuotedValue(content string, key string) string {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, key) {
+			rest := strings.TrimSpace(strings.TrimPrefix(line, key))
+			rest = strings.Trim(rest, "\"")
+			return rest
+		}
+	}
+	return ""
+}
+
+func extractBareValue(content string, key string) string {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, key) {
+			return strings.TrimSpace(strings.TrimPrefix(line, key))
+		}
+	}
+	return ""
 }
 
 func sanitizeReportName(value string) string {
@@ -830,6 +949,13 @@ const indexHTML = `<!doctype html>
           const data = await response.json();
           if (!response.ok) {
             statusNode.textContent = data.error || "Dispatch failed";
+            return;
+          }
+          if (data.skipped) {
+            statusNode.textContent =
+              "Dispatch skipped.\n" +
+              (data.message || "No meaningful changes detected.") + "\n" +
+              "Workflow Page: " + (data.workflowUrl || "-");
             return;
           }
           statusNode.textContent =
